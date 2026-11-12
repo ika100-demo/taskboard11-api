@@ -10,6 +10,7 @@ tasks:
     covers: [AC-002.2, AC-002.3, AC-002.4, AC-002.5]
     parallel_safe: true
     depends_on: []
+    done: true
   - id: t2
     title: Replace the in-memory TaskStore with a Postgres-backed one
     files: [src/taskboard11_api/tasks/store.py, src/taskboard11_api/tasks/models.py, tests/test_task_store.py, tests/test_task_models.py]

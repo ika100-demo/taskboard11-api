@@ -11,18 +11,12 @@ tasks:
     parallel_safe: true
     depends_on: []
     done: true
-  - id: t2
-    title: Replace the in-memory TaskStore with a Postgres-backed one
-    files: [src/taskboard11_api/tasks/store.py, src/taskboard11_api/tasks/models.py, tests/test_task_store.py, tests/test_task_models.py]
-    covers: [AC-002.1, AC-002.2]
-    parallel_safe: true
-    depends_on: [t1]
   - id: t3
-    title: Wire Database into the lifespan, map outages to 503 and make /ready check the database
-    files: [src/taskboard11_api/main.py, src/taskboard11_api/tasks/api.py, tests/test_app_database.py, docs/env-vars.md]
+    title: Postgres-backed TaskStore wired into the lifespan, outages mapped to 503 and /ready checking the database
+    files: [src/taskboard11_api/tasks/store.py, src/taskboard11_api/tasks/models.py, tests/test_task_store.py, tests/test_task_models.py, src/taskboard11_api/main.py, src/taskboard11_api/tasks/api.py, tests/test_app_database.py, docs/env-vars.md]
     covers: [AC-002.1, AC-002.2, AC-002.3, AC-002.4, AC-002.5]
     parallel_safe: true
-    depends_on: [t1, t2]
+    depends_on: [t1]
 ---
 
 # Plan — 002 Store tasks in Postgres so they survive restarts
@@ -48,11 +42,13 @@ Contract, interfaces, schema and test fixtures: [design.md](design.md).
 
 **Done when:** `tests/test_db.py` passes against the fixture cluster and the existing suite still passes with the new autouse fixtures (`devbox run test`), `devbox run quality` is green. Acceptance tests pass only after t3.
 
-## t2 — Replace the in-memory TaskStore with a Postgres-backed one
+## t3 — Postgres-backed TaskStore wired into the lifespan, outages mapped to 503 and /ready checking the database
 
-**Files:** src/taskboard11_api/tasks/store.py, src/taskboard11_api/tasks/models.py, tests/test_task_store.py, tests/test_task_models.py
-**Covers:** AC-002.1, AC-002.2
-**Goal:** `TaskStore(database)` stores and lists tasks in the `tasks` table in creation order, with the same task format as spec 001.
+Merges the former t2 (Postgres-backed `TaskStore`): `tests/conftest.py` imports `main.py`, so the store cannot be verified before `main.py` is wired (decision of the user, 2026-11-12).
+
+**Files:** src/taskboard11_api/tasks/store.py, src/taskboard11_api/tasks/models.py, tests/test_task_store.py, tests/test_task_models.py, src/taskboard11_api/main.py, src/taskboard11_api/tasks/api.py, tests/test_app_database.py, docs/env-vars.md
+**Covers:** AC-002.1, AC-002.2, AC-002.3, AC-002.4, AC-002.5
+**Goal:** `TaskStore(database)` stores and lists tasks in the `tasks` table in creation order, with the same task format as spec 001; and the endpoints of the contract: tasks persisted across restarts, 503 `{"detail": "database unavailable"}` during outages, `/health` independent of the database, `/ready` 200/503 by the database.
 
 **Implementation notes:**
 - `TaskStore.__init__(self, database: Database)`; no lock, no list, nothing kept in memory.
@@ -60,18 +56,8 @@ Contract, interfaces, schema and test fixtures: [design.md](design.md).
 - `list`: `SELECT id, title, due_date FROM tasks ORDER BY seq`; `id` as `str(uuid)`.
 - `DatabaseUnavailableError` propagates unchanged; no FastAPI imports.
 - `models.py`: the `title` validator also rejects `"\x00"` and strings that do not encode as UTF-8 (lone surrogates) with a `ValueError` (design "Decisions"); everything else unchanged.
-- `tests/test_task_store.py`: rewrite for the Postgres store (order across a new `TaskStore`/`Database` on the same URL, distinct uuid ids, concurrent adds from threads, `DatabaseUnavailableError` on an unreachable URL). Drop the in-memory and lifespan tests (lifespan tests move to t3's `tests/test_app_database.py`).
+- `tests/test_task_store.py`: rewrite for the Postgres store (order across a new `TaskStore`/`Database` on the same URL, distinct uuid ids, concurrent adds from threads, `DatabaseUnavailableError` on an unreachable URL). Drop the in-memory and lifespan tests (lifespan tests move to `tests/test_app_database.py`).
 - `tests/test_task_models.py`: add the U+0000 and lone-surrogate cases.
-
-**Done when:** `tests/test_task_store.py` and `tests/test_task_models.py` pass; `devbox run quality` is green. `main.py` still constructs the old store until t3, so the full suite is green only after t3.
-
-## t3 — Wire Database into the lifespan, map outages to 503 and make /ready check the database
-
-**Files:** src/taskboard11_api/main.py, src/taskboard11_api/tasks/api.py, tests/test_app_database.py, docs/env-vars.md
-**Covers:** AC-002.1, AC-002.2, AC-002.3, AC-002.4, AC-002.5
-**Goal:** The endpoints of the contract: tasks persisted across restarts, 503 `{"detail": "database unavailable"}` during outages, `/health` independent of the database, `/ready` 200/503 by the database.
-
-**Implementation notes:**
 - `main.py` import time: `app.state.database = Database()`, `app.state.task_store = TaskStore(app.state.database)` (no database call at import).
 - Lifespan startup: build a new `Database()` and `TaskStore`, then `ensure_schema()` in `try/except DatabaseUnavailableError` logging `database_unavailable_at_startup`; never fail startup (AC-002.5).
 - `/ready`: `request.app.state.database.is_ready()` → 200 `{"status": "ready"}`, else `JSONResponse(503, {"status": "unavailable"})`. `/health`, `/ping`, `/metrics` unchanged.
@@ -79,4 +65,4 @@ Contract, interfaces, schema and test fixtures: [design.md](design.md).
 - `tests/test_app_database.py`: `get_task_store` returns `app.state.task_store`; each lifespan startup installs a new store on the same database (no in-memory state); startup with an unreachable URL succeeds.
 - `docs/env-vars.md`: add a "Database" section with `DATABASE_URL` (required, libpq URI, set by the system's `postgres` resource; unset means not ready) and the fixed timeouts.
 
-**Done when:** all acceptance tests for AC-002.1 to AC-002.5 and spec 001's AC-001.1 to AC-001.6 pass, the existing `test_health.py` passes unchanged, and `devbox run ci` is green.
+**Done when:** `tests/test_task_store.py` and `tests/test_task_models.py` pass, all acceptance tests for AC-002.1 to AC-002.5 and spec 001's AC-001.1 to AC-001.6 pass, the existing `test_health.py` passes unchanged, and `devbox run ci` is green.

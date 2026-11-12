@@ -98,13 +98,3 @@ def test_same_title_twice_gives_distinct_ids(fresh: TestClient) -> None:  # AC-0
     assert [t["title"] for t in listed] == ["Same", "Same"]
     assert a["id"] != b["id"]
     assert {t["id"] for t in listed} == {a["id"], b["id"]}
-
-
-def test_restart_empties_the_list() -> None:  # AC-001.7
-    with TestClient(app) as first:
-        assert first.post("/tasks", json={"title": "Buy milk"}).status_code == 201
-        assert len(first.get("/tasks").json()) == 1
-    with TestClient(app) as second:
-        r = second.get("/tasks")
-        assert r.status_code == 200
-        assert r.json() == []

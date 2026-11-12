@@ -26,7 +26,7 @@ As an API client, I want to list all tasks, so that I can show what has been rec
 - **AC-001.4** Given the service is running, when a client sends `POST /tasks` with the `title` missing, empty, only whitespace, or longer than 200 characters, then the response is 422, and a following `GET /tasks` does not contain a new task.
 - **AC-001.5** Given the service is running, when a client sends `POST /tasks` with a `due_date` that is not a valid calendar date in the form `YYYY-MM-DD` (for example `"tomorrow"` or `"2026-02-30"`), then the response is 422 and no task is created.
 - **AC-001.6** Given two tasks were created with the same title, when a client lists tasks, then both appear, with different `id` values.
-- **AC-001.7** Given tasks were created, when the service restarts, then `GET /tasks` returns 200 with `[]`.
+- ~~**AC-001.7**~~ superseded by AC-002.1 on 2026-11-12: Given tasks were created, when the service restarts, then `GET /tasks` returns 200 with `[]`.
 
 ## Non-goals
 
@@ -55,3 +55,4 @@ As an API client, I want to list all tasks, so that I can show what has been rec
 - 2026-11-12 approved
 - 2026-11-12 building
 - 2026-11-12 done
+- 2026-11-12 AC-001.7 superseded by AC-002.1

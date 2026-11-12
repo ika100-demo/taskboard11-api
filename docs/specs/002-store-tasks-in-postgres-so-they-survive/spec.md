@@ -1,7 +1,7 @@
 ---
 spec_id: 002-store-tasks-in-postgres-so-they-survive
 title: Store tasks in Postgres so they survive restarts, and answer 503 while the database is unreachable
-status: approved
+status: building
 priority: P1
 shape: service-python
 parent: ika100-demo/taskboard11-gitops:001-persistent-tasks-with-web-ui
@@ -106,3 +106,4 @@ Tests run against a real Postgres (the repo's devbox / a test container), not a 
 
 - 2026-11-12 created from the system plan, with its criteria (spec 147)
 - 2026-11-12 approved
+- 2026-11-12 building

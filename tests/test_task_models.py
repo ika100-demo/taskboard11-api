@@ -25,6 +25,12 @@ def test_blank_title_rejected(title: str) -> None:
         TaskCreate(title=title)
 
 
+@pytest.mark.parametrize("title", ["a\x00b", "\x00", "a\ud800b"])
+def test_nul_and_unencodable_title_rejected(title: str) -> None:
+    with pytest.raises(ValidationError):
+        TaskCreate(title=title)
+
+
 @pytest.mark.parametrize("title", [1, 1.5, True, None, ["a"], b"abc"])
 def test_non_string_title_rejected(title: object) -> None:
     with pytest.raises(ValidationError):

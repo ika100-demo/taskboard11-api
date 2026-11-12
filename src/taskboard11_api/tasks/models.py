@@ -20,6 +20,12 @@ class TaskCreate(BaseModel):
     def _title_not_blank(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("title must contain a non-whitespace character")
+        if "\x00" in value:
+            raise ValueError("title must not contain U+0000")
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError("title must be valid UTF-8 text") from exc
         return value
 
     @field_validator("due_date", mode="before")
